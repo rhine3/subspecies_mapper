@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subspecies Mapper</title>
+    <style>
+        .container {
+            text-align: left;
+            margin-top: 20px;
+            margin-left: 20px;
+        }
+        iframe {
+            width: 80%;
+            margin-top: 20px;
+            flex-grow: 1;
+            border: 1px solid #ccc;
+        }
+        .container iframe {
+            flex-grow: 1;
+        }
+        .dropdown {
+            position: relative;
+            display: inline-block;
+            width: 300px;
+        }
+
+        .dropdown input {
+            width: 100%;
+            box-sizing: border-box; /* Ensure padding and border are included in the element's total width and height */
+        }
+        .dropdown-menu {
+            position: absolute;
+            left: 0;
+            top: 100%;
+            width: 100%;
+            border: 1px solid #ccc;
+            background: #fff;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none; /* Hidden by default */
+        }
+        .dropdown-menu.show {
+            display: block;
+        }
+        .dropdown-menu div {
+            padding: 8px;
+            cursor: pointer;
+            text-align: left;
+        }
+        .dropdown-menu div:hover {
+            background-color: #f0f0f0;
+        }
+        .scientific-name {
+            font-style: italic;
+            color: #666;
+        }
+        .option-item {
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Subspecies Mapper</h1>
+        <div class="dropdown">
+            <input type="text" id="speciesInput" placeholder="Start typing..." oninput="filterDropdown()" autocomplete="off">
+            <div id="dropdownMenu" class="dropdown-menu"></div>
+        </div>
+
+        <div id="mapContainer" style="width: 100%; height: 100%; position: relative;">
+            <iframe id="mapFrame" src="Loxia-curvirostra_4.html" style="width: 100%; height: 100%; border: none;"></iframe>
+        </div>
+    </div>
+
+    <script>
+        const speciesData = [
+            { commonName: "Canada Jay", scientificName: "Perisoreus canadensis", mapUrl: "example_map_canadajay.html" },
+            { commonName: "Blue Jay", scientificName: "Cyanocitta cristata", mapUrl: "example_map_bluejay.html" },
+            { commonName: "Steller's Jay", scientificName: "Cyanocitta stelleri", mapUrl: "example_map_stellersjay.html" }
+            // Add more species as needed
+        ];
+
+        // Populate the dropdown dynamically
+        const dropdownMenu = document.getElementById('dropdownMenu');
+        const speciesInput = document.getElementById('speciesInput');
+
+        function populateDropdown() {
+            dropdownMenu.innerHTML = ''; // Clear previous options
+            speciesData.forEach(({ commonName, scientificName }) => {
+                const option = document.createElement('div');
+                option.classList.add('option-item');
+                option.innerHTML = `
+                    <span>${commonName}</span>
+                    <span class="scientific-name">(${scientificName})</span>
+                `;
+                option.dataset.value = commonName;
+                option.dataset.scientificName = scientificName; // Add scientific name for filtering
+                option.onclick = () => selectSpecies(commonName, scientificName);
+                dropdownMenu.appendChild(option);
+            });
+        }
+
+
+        function filterDropdown() {
+            const query = speciesInput.value.toLowerCase();
+            const options = dropdownMenu.children;
+
+            // Show/hide options based on the query
+            let hasVisibleOptions = false;
+            for (const option of options) {
+                const species = option.dataset.value.toLowerCase();
+                const scientificName = option.dataset.scientificName.toLowerCase();
+                if (species.includes(query) || scientificName.includes(query)) {
+                    option.style.display = 'block';
+                    hasVisibleOptions = true;
+                } else {
+                    option.style.display = 'none';
+                }
+            }
+
+            // Show the dropdown menu if there are matching options
+            dropdownMenu.classList.toggle('show', hasVisibleOptions);
+        }
+                        
+
+        function selectSpecies(commonName, scientificName) {
+            speciesInput.value = `${commonName} (${scientificName})`;
+            loadMap(commonName);
+            dropdownMenu.classList.remove('show'); // Hide the dropdown
+        }
+
+        function loadMap(commonName) {
+            const iframe = document.getElementById('mapFrame');
+            const species = speciesData.find(species => species.commonName === commonName);
+            if (species) {
+                iframe.src = species.mapUrl;
+            } else {
+                iframe.src = ''; // Clear iframe if no match
+            }
+        }
+
+        // Initialize the dropdown with species options
+        populateDropdown();
+
+        // Close the dropdown if clicked outside
+        document.addEventListener('click', (e) => {
+            if (!dropdownMenu.contains(e.target) && e.target !== speciesInput) {
+                dropdownMenu.classList.remove('show');
+            }
+        });
+
+        window.addEventListener('resize', adjustIframeSize);
+
+        function adjustIframeSize() {
+            const iframe = document.getElementById('mapFrame');
+            const container = document.querySelector('.container');
+
+            // Dynamically calculate the available height and width
+            const availableHeight = window.innerHeight - container.offsetTop - 40; // Adjust for margins and header
+            const availableWidth = window.innerWidth - 40; // Adjust for padding/margins if necessary
+
+            // Set the iframe size dynamically
+            iframe.style.height = `${availableHeight}px`;
+            iframe.style.width = `${availableWidth}px`;
+        }
+        adjustIframeSize();
+
+        // Adjust the size on window resize
+        window.addEventListener('resize', resizeMap);
+
+        // Initialize the dropdown with species options and adjust iframe size
+        populateDropdown();
+    </script>
+</body>
+</html>
