@@ -66,12 +66,14 @@
 <body>
     <div class="container">
         <h1>Subspecies Mapper</h1>
+        <div><b>Species:</b></div>
         <div class="dropdown">
             <input type="text" id="speciesInput" placeholder="Start typing..." oninput="filterDropdown()" autocomplete="off">
             <div id="dropdownMenu" class="dropdown-menu"></div>
         </div>
 
         <div class="resolutions">
+            <div><b>Resolution:</b></div>
             <label><input type="radio" name="resolution" value="2" onchange="updateResolution()"> Low</label>
             <label><input type="radio" name="resolution" value="3" checked="checked" onchange="updateResolution()"> Medium</label>
             <label><input type="radio" name="resolution" value="4" onchange="updateResolution()"> High</label>
@@ -83,8 +85,8 @@
 
     <script>
         let speciesData = [];
-        let selectedSpecies = null;
-        let selectedResolution = "3";
+        let selectedSpecies = null; //no selected species
+        let selectedResolution = null; //no selected resolution
 
         // Load species data from CSV
         async function loadSpeciesData() {
@@ -175,7 +177,7 @@
         }
 
         // Initialize
-        loadSpeciesData();
+        //loadSpeciesData();
 
         // Close dropdown on outside click
         document.addEventListener('click', (e) => {
@@ -185,6 +187,27 @@
                 dropdownMenu.classList.remove('show');
             }
         });
+
+        // Initialize
+        async function initializePage() {
+            await loadSpeciesData(); // Load species data from the CSV
+
+            // Set default species and resolution
+            selectedSpecies = "Red-tailed Hawk"; // Default species
+            selectedResolution = "3"; // Default resolution
+
+            // Pre-fill the input field
+            document.getElementById('speciesInput').value = selectedSpecies;
+
+            // Select the Low resolution radio button
+            document.querySelector('input[name="resolution"][value="3"]').checked = true;
+
+            // Show the default map
+            updateMap();
+        };
+
+        // Call the initialization function after the DOM is ready
+        initializePage();
     </script>
 </body>
 </html>
