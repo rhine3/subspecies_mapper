@@ -7,27 +7,22 @@
     <style>
         .container {
             text-align: left;
-            margin-top: 20px;
-            margin-left: 20px;
+            margin: 20px;
         }
         iframe {
-            width: 80%;
+            width: 100%;
+            height: 70vh;
             margin-top: 20px;
-            flex-grow: 1;
             border: 1px solid #ccc;
-        }
-        .container iframe {
-            flex-grow: 1;
         }
         .dropdown {
             position: relative;
             display: inline-block;
             width: 300px;
         }
-
         .dropdown input {
             width: 100%;
-            box-sizing: border-box; /* Ensure padding and border are included in the element's total width and height */
+            box-sizing: border-box;
         }
         .dropdown-menu {
             position: absolute;
@@ -39,7 +34,7 @@
             max-height: 200px;
             overflow-y: auto;
             z-index: 1000;
-            display: none; /* Hidden by default */
+            display: none;
         }
         .dropdown-menu.show {
             display: block;
@@ -60,6 +55,12 @@
             display: flex;
             justify-content: space-between;
         }
+        .resolutions {
+            margin-top: 20px;
+        }
+        .resolutions label {
+            margin-right: 20px;
+        }
     </style>
 </head>
 <body>
@@ -70,45 +71,69 @@
             <div id="dropdownMenu" class="dropdown-menu"></div>
         </div>
 
-        <div id="mapContainer" style="width: 100%; height: 100%; position: relative;">
-            <iframe id="mapFrame" src="Loxia-curvirostra_4.html" style="width: 100%; height: 100%; border: none;"></iframe>
+        <div class="resolutions">
+            <label><input type="radio" name="resolution" value="2" onchange="updateResolution()"> Low</label>
+            <label><input type="radio" name="resolution" value="3" checked="checked" onchange="updateResolution()"> Medium</label>
+            <label><input type="radio" name="resolution" value="4" onchange="updateResolution()"> High</label>
+            <label><input type="radio" name="resolution" value="5" onchange="updateResolution()"> Ultra</label>
         </div>
+
+        <iframe id="mapFrame" src="" frameborder="0"></iframe>
     </div>
 
     <script>
-        const speciesData = [
-            { commonName: "Canada Jay", scientificName: "Perisoreus canadensis", mapUrl: "example_map_canadajay.html" },
-            { commonName: "Blue Jay", scientificName: "Cyanocitta cristata", mapUrl: "example_map_bluejay.html" },
-            { commonName: "Steller's Jay", scientificName: "Cyanocitta stelleri", mapUrl: "example_map_stellersjay.html" }
-            // Add more species as needed
-        ];
+        let speciesData = [];
+        let selectedSpecies = null;
+        let selectedResolution = "3";
 
-        // Populate the dropdown dynamically
-        const dropdownMenu = document.getElementById('dropdownMenu');
-        const speciesInput = document.getElementById('speciesInput');
+        // Load species data from CSV
+        async function loadSpeciesData() {
+            const response = await fetch('data/map_data.csv'); // Make sure species_data.csv is in the same directory
+            const csvText = await response.text();
+            speciesData = parseCSV(csvText);
+            populateDropdown();
+        }
 
+        // Parse CSV into a usable array
+        function parseCSV(csvText) {
+            const lines = csvText.trim().split('\n');
+            const headers = lines[0].split(',');
+            return lines.slice(1).map(line => {
+                const values = line.split(',');
+                return headers.reduce((obj, header, i) => {
+                    obj[header.trim()] = values[i].trim();
+                    return obj;
+                }, {});
+            });
+        }
+
+        // Populate dropdown dynamically
         function populateDropdown() {
+            const dropdownMenu = document.getElementById('dropdownMenu');
             dropdownMenu.innerHTML = ''; // Clear previous options
-            speciesData.forEach(({ commonName, scientificName }) => {
+            const uniqueSpecies = [...new Set(speciesData.map(({ common_name }) => common_name))];
+
+            uniqueSpecies.forEach(commonName => {
+                const species = speciesData.find(s => s.common_name === commonName);
                 const option = document.createElement('div');
                 option.classList.add('option-item');
                 option.innerHTML = `
-                    <span>${commonName}</span>
-                    <span class="scientific-name">(${scientificName})</span>
+                    <span>${species.common_name}</span>
+                    <span class="scientific-name">(${species.scientific_name})</span>
                 `;
-                option.dataset.value = commonName;
-                option.dataset.scientificName = scientificName; // Add scientific name for filtering
-                option.onclick = () => selectSpecies(commonName, scientificName);
+                option.dataset.value = species.common_name;
+                option.dataset.scientificName = species.scientific_name; // Add scientific name for filtering
+                option.onclick = () => selectSpecies(commonName);
                 dropdownMenu.appendChild(option);
             });
         }
 
-
+        // Filter dropdown based on input
         function filterDropdown() {
-            const query = speciesInput.value.toLowerCase();
+            const query = document.getElementById('speciesInput').value.toLowerCase();
+            const dropdownMenu = document.getElementById('dropdownMenu');
             const options = dropdownMenu.children;
 
-            // Show/hide options based on the query
             let hasVisibleOptions = false;
             for (const option of options) {
                 const species = option.dataset.value.toLowerCase();
@@ -121,58 +146,45 @@
                 }
             }
 
-            // Show the dropdown menu if there are matching options
             dropdownMenu.classList.toggle('show', hasVisibleOptions);
         }
-                        
 
-        function selectSpecies(commonName, scientificName) {
-            speciesInput.value = `${commonName} (${scientificName})`;
-            loadMap(commonName);
-            dropdownMenu.classList.remove('show'); // Hide the dropdown
+        // Select a species
+        function selectSpecies(commonName) {
+            selectedSpecies = commonName;
+            document.getElementById('speciesInput').value = commonName;
+            document.getElementById('dropdownMenu').classList.remove('show');
+            updateMap();
         }
 
-        function loadMap(commonName) {
+        // Update resolution
+        function updateResolution() {
+            const resolutionRadios = document.querySelectorAll('input[name="resolution"]');
+            selectedResolution = Array.from(resolutionRadios).find(radio => radio.checked).value;
+            updateMap();
+        }
+
+        // Update the map based on selected species and resolution
+        function updateMap() {
+            if (!selectedSpecies || !selectedResolution) return;
+            const mapData = speciesData.find(
+                s => s.common_name === selectedSpecies && s.resolution === selectedResolution
+            );
             const iframe = document.getElementById('mapFrame');
-            const species = speciesData.find(species => species.commonName === commonName);
-            if (species) {
-                iframe.src = species.mapUrl;
-            } else {
-                iframe.src = ''; // Clear iframe if no match
-            }
+            iframe.src = mapData ? mapData.map_url : '';
         }
 
-        // Initialize the dropdown with species options
-        populateDropdown();
+        // Initialize
+        loadSpeciesData();
 
-        // Close the dropdown if clicked outside
+        // Close dropdown on outside click
         document.addEventListener('click', (e) => {
+            const dropdownMenu = document.getElementById('dropdownMenu');
+            const speciesInput = document.getElementById('speciesInput');
             if (!dropdownMenu.contains(e.target) && e.target !== speciesInput) {
                 dropdownMenu.classList.remove('show');
             }
         });
-
-        window.addEventListener('resize', adjustIframeSize);
-
-        function adjustIframeSize() {
-            const iframe = document.getElementById('mapFrame');
-            const container = document.querySelector('.container');
-
-            // Dynamically calculate the available height and width
-            const availableHeight = window.innerHeight - container.offsetTop - 40; // Adjust for margins and header
-            const availableWidth = window.innerWidth - 40; // Adjust for padding/margins if necessary
-
-            // Set the iframe size dynamically
-            iframe.style.height = `${availableHeight}px`;
-            iframe.style.width = `${availableWidth}px`;
-        }
-        adjustIframeSize();
-
-        // Adjust the size on window resize
-        window.addEventListener('resize', resizeMap);
-
-        // Initialize the dropdown with species options and adjust iframe size
-        populateDropdown();
     </script>
 </body>
 </html>
