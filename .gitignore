@@ -1,4 +1,4 @@
 /data/
 /batches/
-*tracker*.csv
+/progress_trackers/
 .DS_Store
