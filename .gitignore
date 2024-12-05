@@ -1,4 +1,4 @@
-data/
-batches/
-tracker*
+/data/
+/batches/
+*tracker*.csv
 .DS_Store
