@@ -198,25 +198,77 @@
             return scientificName.replace(/-/g, ' ');
         }
 
+        let highlightedIndex = -1; // Tracks the currently highlighted option
+
+        // Filter dropdown options based on user input
         function filterDropdown() {
             const query = document.getElementById('speciesInput').value.toLowerCase();
             const dropdownMenu = document.getElementById('dropdownMenu');
             const options = dropdownMenu.children;
 
             let hasVisibleOptions = false;
-            for (const option of options) {
-                const species = option.dataset.value.toLowerCase();
-                const scientificName = option.dataset.scientificName.toLowerCase();
+            highlightedIndex = -1; // Reset highlighted index on input change
+
+            for (let i = 0; i < options.length; i++) {
+                const species = options[i].dataset.value.toLowerCase();
+                const scientificName = options[i].dataset.scientificName.toLowerCase();
                 if (species.includes(query) || scientificName.includes(query)) {
-                    option.style.display = 'block';
+                    options[i].style.display = 'block';
                     hasVisibleOptions = true;
                 } else {
-                    option.style.display = 'none';
+                    options[i].style.display = 'none';
                 }
+                options[i].classList.remove('highlighted'); // Clear highlights
             }
 
             dropdownMenu.classList.toggle('show', hasVisibleOptions);
         }
+
+        // Navigate dropdown options using keyboard
+        document.getElementById('speciesInput').addEventListener('keydown', (e) => {
+            const dropdownMenu = document.getElementById('dropdownMenu');
+            const options = Array.from(dropdownMenu.children).filter(opt => opt.style.display !== 'none');
+
+            if (dropdownMenu.classList.contains('show') && options.length > 0) {
+                if (e.key === 'ArrowDown') {
+                    // Move the highlight down
+                    highlightedIndex = (highlightedIndex + 1) % options.length;
+                    updateHighlight(options);
+                } else if (e.key === 'ArrowUp') {
+                    // Move the highlight up
+                    highlightedIndex = (highlightedIndex - 1 + options.length) % options.length;
+                    updateHighlight(options);
+                } else if (e.key === 'Enter') {
+                    // Select the currently highlighted option
+                    if (highlightedIndex >= 0) {
+                        const selectedOption = options[highlightedIndex];
+                        selectSpecies(selectedOption.dataset.value);
+                    }
+                } else if (e.key === 'Escape') {
+                    // Close the dropdown on Escape key
+                    dropdownMenu.classList.remove('show');
+                }
+            }
+        });
+
+        function updateHighlight(options) {
+            // Remove existing highlights
+            options.forEach(option => option.classList.remove('highlighted'));
+
+            // Highlight the current option
+            if (highlightedIndex >= 0) {
+                options[highlightedIndex].classList.add('highlighted');
+                options[highlightedIndex].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        // Update dropdown styles to show highlighted option
+        document.querySelector('style').textContent += `
+            .dropdown-menu .highlighted {
+                background-color: #007bff;
+                color: white;
+            }
+        `;
 
         function selectSpecies(commonName) {
             selectedSpecies = commonName;
