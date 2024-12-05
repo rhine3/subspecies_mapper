@@ -5,61 +5,123 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Subspecies Mapper</title>
     <style>
+        /* Set sans-serif font for the entire page */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        
         .container {
-            text-align: left;
-            margin: 20px;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
-        iframe {
-            width: 100%;
-            height: 70vh;
-            margin-top: 20px;
-            border: 1px solid #ccc;
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: #333;
         }
+
         .dropdown {
             position: relative;
             display: inline-block;
-            width: 300px;
+            width: 100%;
+            margin-top: 10px;
         }
+        
         .dropdown input {
             width: 100%;
-            box-sizing: border-box;
+            padding: 10px;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            transition: border-color 0.3s ease;
         }
+
+        .dropdown input:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+
         .dropdown-menu {
             position: absolute;
             left: 0;
             top: 100%;
             width: 100%;
-            border: 1px solid #ccc;
-            background: #fff;
             max-height: 200px;
             overflow-y: auto;
-            z-index: 1000;
+            border: 1px solid #ccc;
+            background: #fff;
+            border-radius: 5px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
             display: none;
+            z-index: 1000;
         }
+        
         .dropdown-menu.show {
             display: block;
         }
+
         .dropdown-menu div {
-            padding: 8px;
+            padding: 10px;
             cursor: pointer;
-            text-align: left;
+            font-size: 1rem;
+            border-bottom: 1px solid #eee;
         }
+
         .dropdown-menu div:hover {
             background-color: #f0f0f0;
         }
+
         .scientific-name {
             font-style: italic;
             color: #666;
         }
+
         .option-item {
             display: flex;
             justify-content: space-between;
         }
+
         .resolutions {
             margin-top: 20px;
         }
+
         .resolutions label {
+            display: inline-block;
             margin-right: 20px;
+            font-size: 1.1rem;
+            padding: 10px 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #fff;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .resolutions label:hover,
+        .resolutions input:checked + label {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .resolutions input {
+            display: none;
+        }
+
+        iframe {
+            width: 100%;
+            height: 70vh;
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
         }
     </style>
 </head>
@@ -74,10 +136,17 @@
 
         <div class="resolutions">
             <div><b>Resolution:</b></div>
-            <label><input type="radio" name="resolution" value="2" onchange="updateResolution()"> Low</label>
-            <label><input type="radio" name="resolution" value="3" checked="checked" onchange="updateResolution()"> Medium</label>
-            <label><input type="radio" name="resolution" value="4" onchange="updateResolution()"> High</label>
-            <label><input type="radio" name="resolution" value="5" onchange="updateResolution()"> Ultra</label>
+            <input type="radio" name="resolution" value="2" id="lowResolution" onchange="updateResolution()">
+            <label for="lowResolution">Low</label>
+
+            <input type="radio" name="resolution" value="3" id="mediumResolution" checked="checked" onchange="updateResolution()">
+            <label for="mediumResolution">Medium</label>
+
+            <input type="radio" name="resolution" value="4" id="highResolution" onchange="updateResolution()">
+            <label for="highResolution">High</label>
+
+            <input type="radio" name="resolution" value="5" id="ultraResolution" onchange="updateResolution()">
+            <label for="ultraResolution">Ultra</label>
         </div>
 
         <iframe id="mapFrame" src="" frameborder="0"></iframe>
@@ -85,18 +154,16 @@
 
     <script>
         let speciesData = [];
-        let selectedSpecies = null; //no selected species
-        let selectedResolution = null; //no selected resolution
+        let selectedSpecies = null;
+        let selectedResolution = null;
 
-        // Load species data from CSV
         async function loadSpeciesData() {
-            const response = await fetch('data/map_data.csv'); // Make sure species_data.csv is in the same directory
+            const response = await fetch('data/map_data.csv');
             const csvText = await response.text();
             speciesData = parseCSV(csvText);
             populateDropdown();
         }
 
-        // Parse CSV into a usable array
         function parseCSV(csvText) {
             const lines = csvText.trim().split('\n');
             const headers = lines[0].split(',');
@@ -109,10 +176,9 @@
             });
         }
 
-        // Populate dropdown dynamically
         function populateDropdown() {
             const dropdownMenu = document.getElementById('dropdownMenu');
-            dropdownMenu.innerHTML = ''; // Clear previous options
+            dropdownMenu.innerHTML = '';
             const uniqueSpecies = [...new Set(speciesData.map(({ common_name }) => common_name))];
 
             uniqueSpecies.forEach(commonName => {
@@ -121,16 +187,20 @@
                 option.classList.add('option-item');
                 option.innerHTML = `
                     <span>${species.common_name}</span>
-                    <span class="scientific-name">(${species.scientific_name})</span>
+                    <span class="scientific-name">(${removeHyphens(species.scientific_name)})</span>
                 `;
                 option.dataset.value = species.common_name;
-                option.dataset.scientificName = species.scientific_name; // Add scientific name for filtering
+                option.dataset.scientificName = species.scientific_name;
                 option.onclick = () => selectSpecies(commonName);
                 dropdownMenu.appendChild(option);
             });
         }
 
-        // Filter dropdown based on input
+        // Function to remove hyphens from the scientific names
+        function removeHyphens(scientificName) {
+            return scientificName.replace(/-/g, ' ');
+        }
+
         function filterDropdown() {
             const query = document.getElementById('speciesInput').value.toLowerCase();
             const dropdownMenu = document.getElementById('dropdownMenu');
@@ -151,22 +221,21 @@
             dropdownMenu.classList.toggle('show', hasVisibleOptions);
         }
 
-        // Select a species
         function selectSpecies(commonName) {
             selectedSpecies = commonName;
-            document.getElementById('speciesInput').value = commonName;
+            const species = speciesData.find(s => s.common_name === commonName);
+            const speciesScientificName = removeHyphens(species.scientific_name);
+            document.getElementById('speciesInput').value = `${commonName} (${speciesScientificName})`;
             document.getElementById('dropdownMenu').classList.remove('show');
             updateMap();
         }
 
-        // Update resolution
         function updateResolution() {
             const resolutionRadios = document.querySelectorAll('input[name="resolution"]');
             selectedResolution = Array.from(resolutionRadios).find(radio => radio.checked).value;
             updateMap();
         }
 
-        // Update the map based on selected species and resolution
         function updateMap() {
             if (!selectedSpecies || !selectedResolution) return;
             const mapData = speciesData.find(
@@ -176,37 +245,16 @@
             iframe.src = mapData ? mapData.map_url : '';
         }
 
-        // Initialize
-        //loadSpeciesData();
-
-        // Close dropdown on outside click
-        document.addEventListener('click', (e) => {
-            const dropdownMenu = document.getElementById('dropdownMenu');
-            const speciesInput = document.getElementById('speciesInput');
-            if (!dropdownMenu.contains(e.target) && e.target !== speciesInput) {
-                dropdownMenu.classList.remove('show');
-            }
-        });
-
-        // Initialize
         async function initializePage() {
-            await loadSpeciesData(); // Load species data from the CSV
-
-            // Set default species and resolution
-            selectedSpecies = "Red-tailed Hawk"; // Default species
-            selectedResolution = "3"; // Default resolution
-
-            // Pre-fill the input field
-            document.getElementById('speciesInput').value = selectedSpecies;
-
-            // Select the Low resolution radio button
+            await loadSpeciesData();
+            selectedSpecies = "Red-tailed Hawk";
+            selectedResolution = "3";
+            const species = speciesData.find(s => s.common_name === selectedSpecies);
+            document.getElementById('speciesInput').value = `${selectedSpecies} (${removeHyphens(species.scientific_name)})`;
             document.querySelector('input[name="resolution"][value="3"]').checked = true;
-
-            // Show the default map
             updateMap();
         };
 
-        // Call the initialization function after the DOM is ready
         initializePage();
     </script>
 </body>
