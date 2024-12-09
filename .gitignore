@@ -3,6 +3,10 @@ color_testing.ipynb
 docs/maps_NEW
 sp_cell_dfs
 /data/
-/batches/
+/batches*/
 /progress_trackers/
 .DS_Store
+__pycache__/
+.ipynb_checkpoints
+0_outputs*
+
