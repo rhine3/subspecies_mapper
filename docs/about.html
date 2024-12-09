@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About - Subspecies Mapper</title>
+    <link rel="stylesheet" href="styles.css">
+    <script>
+        async function loadMenu() {
+            const response = await fetch('menu.html');
+            const menuHTML = await response.text();
+            document.body.insertAdjacentHTML('afterbegin', menuHTML);
+        }
+        loadMenu();
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>About Subspecies Mapper</h1>
+        <p>This website displays maps of subspecies eBird reports for the over 1300 species with reportable subspecies on eBird.</p>
+        <h3>Terminology</h3>
+        <p>For a given species, maps display all reported "infraspecies" of the three following categories, following the <a href="https://science.ebird.org/en/use-ebird-data/the-ebird-taxonomy">eBird taxonomy</a>:</p>
+        <ul>
+            <li><strong>Subspecies</strong>: Taxonomic units below the species level that follow subspecific boundaries as defined by the Clements checklist (called "ISSF" on eBird). May include groups of 2+ subspecies.</li>
+            <li><strong>Forms</strong>: Catch-all for forms without a scientific name, including identifiable groups, unrecognized groups that may represent distinct taxa, etc.</li>
+            <li><strong>Intergrades</strong>: Birds descended from multiple subspecies, forms, or both</li>
+        </ul>
+        <h3>Data usage</h3>
+        <p>Maps in this website are generated from the eBird dataset:</p>
+        <blockquote>
+            eBird Basic Dataset. Version: EBD_relOct-2024. Cornell Lab of Ornithology, Ithaca, New York. Oct 2024.
+        </blockquote>
+        <b>Want to create your own maps? </b>Tables of subspecies data derived from this dataset are available on request and agreement to follow the <a href="https://github.com/rhine3/subspecies_plotter/blob/main/terms_of_use.txt">eBird Data Terms of Use</a>. Please contact tessa dot rhinehart @ pitt.edu for more information.
+
+        <h3>Cite this website</h3>
+        <blockquote>
+            Rhinehart, Tessa A; Ragan, Liam; Beam, Johanna. Subspecies Mapper. University of Pittsburgh, Pittsburgh, PA. Oct 2024. https://rhine3.github.io/subspecies_plotter/.
+        </blockquote>
+    </div>
+</body>
+</html>

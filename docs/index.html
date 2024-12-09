@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Subspecies Mapper</title>
+    <link rel="stylesheet" href="styles.css">
+    <script>
+        async function loadMenu() {
+            const response = await fetch('menu.html');
+            const menuHTML = await response.text();
+            document.body.insertAdjacentHTML('afterbegin', menuHTML);
+        }
+        loadMenu();
+    </script>
+
     <style>
         /* Set sans-serif font for the entire page */
         body {
@@ -36,7 +46,7 @@
         }
         
         .dropdown input {
-            width: 100%;
+            width: calc(100% - 20px); /* Adjust based on the padding/border of .container */
             padding: 10px;
             font-size: 1rem;
             border: 1px solid #ccc;
@@ -127,7 +137,6 @@
 </head>
 <body>
     <div class="container">
-        <h1>Subspecies Mapper</h1>
         <div><b>Species:</b></div>
         <div class="dropdown">
             <input type="text" id="speciesInput" placeholder="Start typing..." oninput="filterDropdown()" autocomplete="off">
@@ -146,7 +155,7 @@
             <label for="highResolution">High</label>
         </div>
 
-        <iframe id="mapFrame" src="" frameborder="0"></iframe>
+        <iframe id="mapFrame" src="https://subspeciesmapper.netlify.app/branta-bernicla_2" frameborder="0"></iframe>
     </div>
 
     <script>
