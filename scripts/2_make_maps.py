@@ -374,7 +374,6 @@ def split_polygon_at_line(polygon, line):
     return split_geojsons
 
 
-
 def split_at_dateline(geojson):
     """
     Adjusts polygons in a GeoJSON that cross the International Date Line (180° longitude)
@@ -397,7 +396,7 @@ def split_at_dateline(geojson):
             if any(abs(lon) > 165 for ring in coords for lon, _ in ring):
                 # Adjust longitudes for all rings in the polygon
                 new_coords = [
-                    [(lon + 360 if lon < 0 else lon, lat) for lon, lat in ring]
+                    [(lon + 360 if (lon < 0 and lat < 0) else lon, lat) for lon, lat in ring]
                     for ring in coords
                 ]
                 geom['coordinates'] = new_coords
@@ -409,7 +408,7 @@ def split_at_dateline(geojson):
                 if any(abs(lon) > 170 for ring in polygon for lon, _ in ring):
                     # Adjust longitudes for all rings in the polygon
                     adjusted_polygon = [
-                        [(lon + 360 if lon < 0 else lon, lat) for lon, lat in ring]
+                        [(lon + 360 if (lon < 0 and lat < 0) else lon, lat) for lon, lat in ring]
                         for ring in polygon
                     ]
                     new_coords.append(adjusted_polygon)
