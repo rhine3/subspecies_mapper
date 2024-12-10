@@ -58,7 +58,6 @@ def parse_batch_files(batch_directory):
         # Save the CSV
         sp_cell_df.to_csv(filename)
         print("\nSaved", filename.name)
-        quit()
 
 
 parse_batch_files(batch_directory)
