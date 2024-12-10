@@ -9,4 +9,4 @@ sp_cell_dfs
 __pycache__/
 .ipynb_checkpoints
 0_outputs*
-
+*.slurm
