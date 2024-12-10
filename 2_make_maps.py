@@ -1,17 +1,59 @@
+#import fireducks.pandas as pd
+import pandas as pd
+import numpy as np
+from pathlib import Path
+from functools import reduce
+import os
+
+#import _json
+import json
+pd.options.mode.copy_on_write = True
+from progiter import ProgIter
+
+import h3
+import folium
+
+from geojson import Feature, FeatureCollection
 from shapely.geometry import Polygon, LineString, mapping
 from shapely.ops import split
-import json
-import geopandas as gpd
-import numpy as np
-import pandas as pd
+
+from sklearn.metrics.pairwise import cosine_similarity
 import networkx as nx
 import colorsys
-from sklearn.metrics.pairwise import cosine_similarity
-import matplotlib.pyplot as plt
 from colormath.color_objects import sRGBColor, LabColor
 from colormath.color_conversions import convert_color
 from colormath import color_diff_matrix
 #from colormath.color_diff import delta_e_cie2000 # deprecated and doesn't work anymore, reimplemented below
+
+
+# Load eBird taxonomy
+taxonomy = pd.read_csv("eBird_taxonomy_v2024.csv")
+
+# Load dict of infraspecies
+with open("infraspecies_ebird.json") as f:
+    spp_dict = json.load(f)
+    
+    
+# Make 70 jobs, each of which does maps for 20 spp.
+job_num = int(os.environ.get('SLURM_ARRAY_TASK_ID'))
+species_per_job = 20
+start_idx = job_num*species_per_job
+end_idx = (job_num+1)*species_per_job
+
+# Parameters
+remake_maps = True # Remake a map if it already exists
+include_flagged_confirmed = True # Include flagged records (only confirmed are available)
+resolutions = [2,3,4] #H3 resolutions to use (assuming sp_cell_dfs already computed)
+
+
+def aggregate_by_cell(dataframes):
+    """Aggregate column values in dataframes by H3 cells
+    
+    Args:
+        dataframes: pd.DataFrame with index = H3 cell, identical columns
+    """
+    return reduce(lambda a, b: a.add(b, fill_value=0), dataframes)
+
 
 def get_infraspecies_relationships(sp, spp_dict=spp_dict):
     data = spp_dict[sp]['infraspecies']
@@ -465,14 +507,15 @@ def choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_
         tt3_style = '''.tt3 {margin-right: 10px;}'''
         tt4_style = '''.tt4 {text-align: right; background: ;}'''
         total_reports = row[subspp].sum()
-        tooltip_text += f'''<div class="tt2"><div class="tt3"><strong>Reported taxa</strong><br>Total reports: {total_reports:.0f}</div><div class="tt4">'''
         # Add percentages to the right-aligned div
         if total_reports > 0:
+            tooltip_text += f'''<div class="tt2"><div class="tt3"><strong>Reported subspecies</strong><br>Total reports: {total_reports:.0f}</div><div class="tt4">'''
             for subsp, percent in percentages_dict_ordered.items():
                 if percent > 0:
                     subsp_common_name = get_ssp_common_name(sp, subsp)
                     tooltip_text += f"<div>{subsp_common_name}: {percent:.0f}%</div>" if percent > 0.5 else ""
         else:
+            tooltip_text += f'''<div class="tt2"><div class="tt3"><strong>Reported subspecies</strong><br></div><div class="tt4">'''
             tooltip_text += '''</div>None</div>'''
 
         # Close all divs
@@ -517,7 +560,7 @@ def choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_
             'color': 'transparent',  
             'fillOpacity': 0.6 
         },
-        tooltip=GeoJsonTooltip(
+        tooltip=folium.GeoJsonTooltip(
             fields=["tooltip"],
             aliases=[None],  # No additional label prepended
             localize=True,
@@ -590,54 +633,60 @@ def choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_
 
     # TODO: String manipulations to make HTML smaller?
     string_so_far = map.get_root().render()
-    return string_so_far
+    return string_so_far, map
+
+def import_sp_cell_df(dataname):
+    if not Path(dataname).exists():
+         return None
+    sp_cell_df = pd.read_csv(dataname, index_col=0)
+    sp_cell_df.columns = sp_cell_df.columns.str.replace(species + ' ', "")
+    return sp_cell_df
 
 
-remake_maps = True
-for sp_code in sp_codes:
+# Extract which species scientific names have infraspecies associated with them
+spp_with_infras = [sp for sp, info in spp_dict.items() if len(info["infraspecies"].keys()) > 0]
+
+    
+remake_maps=True
+for idx, species in ProgIter(enumerate(spp_with_infras[start_idx:end_idx])):
     subspp_colors = None
-    print("\nMapping", sp_code)
-    common_name = taxonomy[taxonomy['SPECIES_CODE'] == sp_code].PRIMARY_COM_NAME.values[0]
+    print("\nMapping", species)
+    common_name = taxonomy[taxonomy['SCI_NAME'] == species].PRIMARY_COM_NAME.values[0]
+    print(common_name)
     for resolution in resolutions: #[2,3,4]
-        species = taxonomy[taxonomy['PRIMARY_COM_NAME'] == common_name].SCI_NAME.values[0]
-        dataname = f"sp_cell_dfs/{species.replace(' ', '-')}_resolution{resolution}.csv"
-        if not Path(dataname).exists():
-            print("No data for", species, "at resolution", resolution)
-            continue
+        # Skip this species & resolution if needed
         map_filename = f"docs/maps/{species.replace(' ', '-')}_{resolution}.html"
         if Path(map_filename).exists() and not remake_maps:
             print("Map already exists for", species, "at resolution", resolution)
             continue
-        sp_cell_df = pd.read_csv(dataname, index_col=0)
-        sp_cell_df.columns = sp_cell_df.columns.str.replace(species + ' ', "")
+        
+        # Load datasets as needed
+        if include_flagged_confirmed:
+            # Aggregate both flagged and unflagged data
+            df1 = import_sp_cell_df(f"sp_cell_dfs/{species.replace(' ', '-')}_status-unflagged_resolution{resolution}.csv")
+            df2 = import_sp_cell_df(f"sp_cell_dfs/{species.replace(' ', '-')}_status-flagged-approved_resolution{resolution}.csv")
+            if df1 is None:
+                if df2 is None:
+                    print("No data for", species, "at resolution", resolution)
+                    continue
+                else:
+                    sp_cell_df = df2
+            else:
+                if df2 is None:
+                    sp_cell_df = df1
+                else:
+                    sp_cell_df = aggregate_by_cell([df1, df2])    
+        else:
+            # Use only unflagged data
+            dataname = f"sp_cell_dfs/{species.replace(' ', '-')}_status-unflagged_resolution{resolution}.csv"
+            sp_cell_df = import_sp_cell_df(dataname)
+
         subspecies = sp_cell_df.columns[1:]
         if resolution == 2 or subspp_colors == None:
             subspp_colors, sorted_issfs, sorted_forms, sorted_intergrades = get_color_mapping(sp_cell_df)
             
-        m = choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_forms, sorted_intergrades)
+        map_string, m = choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_forms, sorted_intergrades)
         map_filename = f"docs/maps/{species.replace(' ', '-')}_{resolution}.html"
-        #m.save(map_filename)
+        m.save(map_filename)
         with open(map_filename, 'w') as f:
-            f.write(m)
-
-# Create a CSV of maps for the website
-df = pd.DataFrame(columns=["common_name", "scientific_name", "resolution", "map_url"])
-maps_dir = Path("docs/maps")
-
-# Sort maps taxonomically
-maps_list = list(maps_dir.glob("*.html"))
-species = {p.name.split('_')[0].replace('-', ' '): p for p in maps_list}
-ordering = taxonomy[['SCI_NAME', 'TAXON_ORDER']].set_index("SCI_NAME").to_dict()['TAXON_ORDER']
-maps_list = sorted(maps_list, key=lambda x: ordering[x.name.split('_')[0].replace('-', ' ')])
-
-# Create table of common name, species, resolution, and map URL
-# This is used by the website
-for idx, file in enumerate(maps_list):
-    resolution = file.stem.split("_")[-1]
-    species = file.stem.replace(f"_{resolution}", "")
-    common_name = taxonomy[taxonomy['SCI_NAME'] == species.replace('-', ' ')].PRIMARY_COM_NAME.values[0]
-    #map_url = Path(Path(file).parent.stem).joinpath(Path(file).name)
-    map_url = 'https://subspeciesmapper.netlify.app/' + str(file.relative_to(maps_dir))
-    print(map_url)
-    df.loc[idx] = [common_name, species, resolution, map_url]
-df.to_csv("docs/data/map_data.csv", index=False)
+            f.write(map_string)
