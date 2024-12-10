@@ -1,6 +1,5 @@
 ebd*.tar
 color_testing.ipynb
-docs/maps_NEW
 sp_cell_dfs
 /data/
 /batches*/
@@ -8,5 +7,7 @@ sp_cell_dfs
 .DS_Store
 __pycache__/
 .ipynb_checkpoints
-0_outputs*
+*_outputs*
 *.slurm
+docs/maps/*.html
+*_testing.ipynb
