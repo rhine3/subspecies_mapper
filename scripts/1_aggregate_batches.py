@@ -5,9 +5,9 @@ from progiter import ProgIter
 import warnings
 import os
 
-sp_cell_df_directory = Path('sp_cell_dfs/')
+sp_cell_df_directory = Path('../sp_cell_dfs/')
 sp_cell_df_directory.mkdir(exist_ok=True)
-batch_directory = Path('batches/')
+batch_directory = Path('../batches/')
 
 def aggregate_by_cell(dataframes):
     """Aggregate column values in dataframes by H3 cells

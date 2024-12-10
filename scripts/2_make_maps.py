@@ -27,10 +27,10 @@ from colormath import color_diff_matrix
 
 
 # Load eBird taxonomy
-taxonomy = pd.read_csv("eBird_taxonomy_v2024.csv")
+taxonomy = pd.read_csv("../resources/eBird_taxonomy_v2024.csv")
 
 # Load dict of infraspecies
-with open("infraspecies_ebird.json") as f:
+with open("../resources/infraspecies_ebird.json") as f:
     spp_dict = json.load(f)
     
     
@@ -710,7 +710,7 @@ for idx, species in ProgIter(enumerate(spp_with_infras[start_idx:end_idx])):
     print(common_name)
     for resolution in resolutions: #[2,3,4]
         # Skip this species & resolution if needed
-        map_filename = f"docs/maps/{species.replace(' ', '-')}_{resolution}.html"
+        map_filename = f"../docs/maps/{species.replace(' ', '-')}_{resolution}.html"
         if Path(map_filename).exists() and not remake_maps:
             print("Map already exists for", species, "at resolution", resolution)
             continue
@@ -718,8 +718,8 @@ for idx, species in ProgIter(enumerate(spp_with_infras[start_idx:end_idx])):
         # Load datasets as needed
         if include_flagged_confirmed:
             # Aggregate both flagged and unflagged data
-            df1 = import_sp_cell_df(f"sp_cell_dfs/{species.replace(' ', '-')}_status-unflagged_resolution{resolution}.csv")
-            df2 = import_sp_cell_df(f"sp_cell_dfs/{species.replace(' ', '-')}_status-flagged-approved_resolution{resolution}.csv")
+            df1 = import_sp_cell_df(f"../sp_cell_dfs/{species.replace(' ', '-')}_status-unflagged_resolution{resolution}.csv")
+            df2 = import_sp_cell_df(f"../sp_cell_dfs/{species.replace(' ', '-')}_status-flagged-approved_resolution{resolution}.csv")
             if df1 is None:
                 if df2 is None:
                     print("No data for", species, "at resolution", resolution)
@@ -733,7 +733,7 @@ for idx, species in ProgIter(enumerate(spp_with_infras[start_idx:end_idx])):
                     sp_cell_df = aggregate_by_cell([df1, df2])    
         else:
             # Use only unflagged data
-            dataname = f"sp_cell_dfs/{species.replace(' ', '-')}_status-unflagged_resolution{resolution}.csv"
+            dataname = f"../sp_cell_dfs/{species.replace(' ', '-')}_status-unflagged_resolution{resolution}.csv"
             sp_cell_df = import_sp_cell_df(dataname)
 
         subspecies = sp_cell_df.columns[1:]
@@ -741,7 +741,7 @@ for idx, species in ProgIter(enumerate(spp_with_infras[start_idx:end_idx])):
             subspp_colors, sorted_issfs, sorted_forms, sorted_intergrades = get_color_mapping(sp_cell_df)
             
         map_string, m = choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_forms, sorted_intergrades)
-        map_filename = f"docs/maps/{species.replace(' ', '-')}_{resolution}.html"
+        map_filename = f"../docs/maps/{species.replace(' ', '-')}_{resolution}.html"
         m.save(map_filename)
         with open(map_filename, 'w') as f:
             f.write(map_string)

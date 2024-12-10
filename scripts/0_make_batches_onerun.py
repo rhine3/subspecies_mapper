@@ -16,13 +16,39 @@ import os
 taxonomy = pd.read_csv("eBird_taxonomy_v2024.csv")
 taxonomy.head()
 
+# List the species that have infraspecific entries
+infrasp_categories = ['issf', 'form', 'intergrade']
+infraspp = taxonomy[taxonomy.CATEGORY.isin(infrasp_categories)]
+
+# # Create a dictionary mapping species to their infraspecies, by category
+# # Most species have a single category of infraspecies (e.g. either form or subspecies, not both)
+# # However some species have infraspecies in multiple categories, e.g. Brant (Branta bernicla) has both subspecies and forms
+# spp_dict = species[['SPECIES_CODE', 'PRIMARY_COM_NAME', 'SCI_NAME']].set_index("SCI_NAME").T.to_dict()
+# # Add infraspecies to spp_json
+# #for sp in tqdm(spp_dict.keys()):
+# for sp in spp_dict.keys():
+#     # Get infraspecies for this species
+#     infraspp_for_sp = infraspp[infraspp['SCI_NAME'].apply(lambda x: x[:len(sp)] == sp)]
+#     infraspp_dict = dict()
+
+#     # Add infraspecies to spp_json by category
+#     for cat in infrasp_categories:
+#         infrasp_in_category = infraspp_for_sp[infraspp_for_sp.CATEGORY == cat]
+#         infrasp_cat_dict = infrasp_in_category[
+#             ['SPECIES_CODE', 'PRIMARY_COM_NAME', 'SCI_NAME']].set_index("SCI_NAME").T.to_dict()
+#         if len(infrasp_cat_dict.keys()) > 0:
+#             infraspp_dict[cat] = infrasp_cat_dict
+#     spp_dict[sp]['infraspecies'] = infraspp_dict
+
+# with open("../resources/infraspecies_ebird.json", 'w') as f:
+#     f.write(json.dumps(spp_dict, indent=4))
+
 # Dictionary mapping species to their infraspecies, by category
-with open("infraspecies_ebird.json") as f:
+with open("../resources/infraspecies_ebird.json") as f:
     spp_dict = json.load(f)
     
     
 resolutions = [2, 3, 4]
-
 
 def remove_duplicates(df):
     """Remove any species sightings duplicated across groups
@@ -173,7 +199,7 @@ dataset_filepath = f"data/ebd_relOct-2024.txt"
 
 
 # Where we will store each batch of data
-batch_directory = Path('batches_onerun/')
+batch_directory = Path('../batches_onerun/')
 batch_directory.mkdir(exist_ok=True)
 
 statuses = ["unflagged", "flagged-approved"] 

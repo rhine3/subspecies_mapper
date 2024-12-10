@@ -2,7 +2,7 @@ import pandas as pd
 from pathlib import Path
 
 # Load eBird taxonomy
-taxonomy = pd.read_csv("eBird_taxonomy_v2024.csv")
+taxonomy = pd.read_csv("../resources/eBird_taxonomy_v2024.csv")
 
 ## Create a CSV of map URLs for the website
 df = pd.DataFrame(columns=["common_name", "scientific_name", "resolution", "map_url"])
@@ -24,4 +24,4 @@ for idx, file in enumerate(maps_list):
     map_url = 'https://subspeciesmapper.netlify.app/' + str(file.relative_to(maps_dir))
     print(map_url)
     df.loc[idx] = [common_name, species, resolution, map_url]
-df.to_csv("docs/data/map_data.csv", index=False)
+df.to_csv("../docs/data/map_data.csv", index=False)
