@@ -152,7 +152,7 @@
             <div class="dropdownContainer">
                 <div><b>Species</b></div>
                 <div class="dropdown">
-                    <input type="text" id="speciesInput" placeholder="Start typing..." oninput="filterDropdown()" autocomplete="off">
+                    <input type="text" id="speciesInput" placeholder="Start typing..." oninput="filterDropdown()" onfocus="highlightText(this)"  autocomplete="off">
                     <div id="dropdownMenu" class="dropdown-menu"></div>
                 </div>
             </div>
@@ -294,6 +294,10 @@
                 color: white;
             }
         `;
+
+        function highlightText(inputElement) {
+            inputElement.select();
+        }
 
         // Respond to user selecting a species
         function selectSpecies(commonName) {
