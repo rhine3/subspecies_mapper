@@ -6,8 +6,7 @@ from pathlib import Path
 import h3
 import matplotlib.pyplot as plt
 import ast
-pd.options.mode.copy_on_write = True 
-from functools import reduce
+pd.options.mode.copy_on_write = True
 import json
 from progiter import ProgIter
 import os
