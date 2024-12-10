@@ -3,7 +3,7 @@ color_testing.ipynb
 sp_cell_dfs
 /data/
 /batches*/
-/progress_trackers/
+/scripts/progress_trackers/
 .DS_Store
 __pycache__/
 .ipynb_checkpoints
