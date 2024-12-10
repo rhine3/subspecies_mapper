@@ -373,10 +373,56 @@ def split_polygon_at_line(polygon, line):
     
     return split_geojsons
 
+# REMOVED IN FAVOR OF ADJUST_LONGITUDES
+# which doesn't result in issues for species like Polynesian Starling, Fiji Shrikebill
+# whose ranges straddle the dateline and the halves are shown at opposite sides of the map
+# def split_at_dateline(geojson):
+#     """
+#     Splits polygons that cross the International Date Line (180° longitude).
+    
+#     Parameters:
+#     - geojson: A GeoJSON-like dictionary of geometries.
+    
+#     Returns:
+#     - A new GeoJSON with adjusted geometries.
+#     """
+#     dateline = LineString([(180, 90), (180, -90)])
+#     adjusted_polygons = []
+    
+#     for feature in geojson['features']:
+#         geom = feature['geometry']
+#         polygon = Polygon(geom['coordinates'][0])
 
-def split_at_dateline(geojson):
+#         # Check if the polygon crosses the dateline
+#         if not polygon.is_valid:
+#             polygon = polygon.buffer(0)  # Fix invalid geometries
+
+#         # Check if any of the polygon's coordinates are within 5 degrees of the dateline
+#         if any(abs(lon) > 170 for lon, _ in polygon.exterior.coords) and any(abs(lon1 - lon2) > 180 for lon1, lon2 in zip(polygon.exterior.xy[0][:-1], polygon.exterior.xy[0][1:])):
+#             # For all the longitudes that are less than -170, add 360 to them
+#             new_coords = [
+#                 [(x + 360 if x < -170 else x, y) for x, y in polygon.exterior.coords]
+#             ]
+#             adjusted_polygons.append({
+#                 "type": "Feature",
+#                 "geometry": {
+#                     "type": "Polygon",
+#                     "coordinates": new_coords
+#                 },
+#                 "properties": feature['properties']
+#             })
+#         else:
+#             adjusted_polygons.append(feature)
+    
+#     return {
+#         "type": "FeatureCollection",
+#         "features": adjusted_polygons
+#     }
+
+
+def adjust_longitudes(geojson):
     """
-    Splits polygons that cross the International Date Line (180° longitude).
+    Adjusts longitudes in a GeoJSON so that any longitude less than 0 has 360 added to it.
     
     Parameters:
     - geojson: A GeoJSON-like dictionary of geometries.
@@ -384,37 +430,44 @@ def split_at_dateline(geojson):
     Returns:
     - A new GeoJSON with adjusted geometries.
     """
-    dateline = LineString([(180, 90), (180, -90)])
-    adjusted_polygons = []
-    
+    adjusted_features = []
+
     for feature in geojson['features']:
         geom = feature['geometry']
-        polygon = Polygon(geom['coordinates'][0])
-
-        # Check if the polygon crosses the dateline
-        if not polygon.is_valid:
-            polygon = polygon.buffer(0)  # Fix invalid geometries
-
-        # Check if any of the polygon's coordinates are within 5 degrees of the dateline
-        if any(abs(lon) > 170 for lon, _ in polygon.exterior.coords) and any(abs(lon1 - lon2) > 180 for lon1, lon2 in zip(polygon.exterior.xy[0][:-1], polygon.exterior.xy[0][1:])):
-            # For all the longitudes that are less than -170, add 360 to them
+        geom_type = geom['type']
+        
+        if geom_type == "Polygon":
+            # Adjust longitudes in Polygon coordinates
             new_coords = [
-                [(x + 360 if x < -170 else x, y) for x, y in polygon.exterior.coords]
+                [(lon + 360 if lon < 0 else lon, lat) for lon, lat in ring]
+                for ring in geom['coordinates']
             ]
-            adjusted_polygons.append({
-                "type": "Feature",
-                "geometry": {
-                    "type": "Polygon",
-                    "coordinates": new_coords
-                },
-                "properties": feature['properties']
-            })
+            adjusted_geometry = {"type": "Polygon", "coordinates": new_coords}
+        
+        elif geom_type == "MultiPolygon":
+            # Adjust longitudes in MultiPolygon coordinates
+            new_coords = [
+                [
+                    [(lon + 360 if lon < 0 else lon, lat) for lon, lat in ring]
+                    for ring in polygon
+                ]
+                for polygon in geom['coordinates']
+            ]
+            adjusted_geometry = {"type": "MultiPolygon", "coordinates": new_coords}
+        
         else:
-            adjusted_polygons.append(feature)
-    
+            # For unsupported geometry types, leave as-is
+            adjusted_geometry = geom
+
+        adjusted_features.append({
+            "type": "Feature",
+            "geometry": adjusted_geometry,
+            "properties": feature['properties']
+        })
+
     return {
         "type": "FeatureCollection",
-        "features": adjusted_polygons
+        "features": adjusted_features
     }
 
 
@@ -477,7 +530,10 @@ def choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_
     """Creates a choropleth map given species data."""
     
     f = folium.Figure()
-    map = folium.Map(location=[47, -122], zoom_start=5, tiles="cartodbpositron", control_scale=True)
+    map = folium.Map(location=[47, -122], zoom_start=5, 
+                     tiles="cartodbpositron", 
+                     #tiles=folium.TileLayer("cartodbpositron", no_wrap=True),
+                     control_scale=True, world_copy_jump=False)
     f.add_child(map)
 
     sp = sp_cell_df.columns[0]
@@ -502,7 +558,6 @@ def choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_
         tooltip_text = '<div class="tt1">'
 
         # Add header and create a flex container for total reports and percentages
-
         tt2_style = '''.tt2 {display: flex; justify-content: space-between; margin-top: 5px;}'''
         tt3_style = '''.tt3 {margin-right: 10px;}'''
         tt4_style = '''.tt4 {text-align: right; background: ;}'''
@@ -540,7 +595,8 @@ def choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_
     geojson_result = json.dumps(feat_collection)
 
     # Deal with geometries that cross the International Date Line
-    geojson_result = split_at_dateline(json.loads(geojson_result))
+#     geojson_result = split_at_dateline(json.loads(geojson_result))
+    geojson_result = adjust_longitudes(json.loads(geojson_result))
 
     # Reduce precision to 3 digits (111 meters)
     geojson_result = reduce_precision(geojson_result, precision=3)
@@ -631,7 +687,6 @@ def choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_
     bounds = get_bounds(geojson_result)
     map.fit_bounds(bounds)
 
-    # TODO: String manipulations to make HTML smaller?
     string_so_far = map.get_root().render()
     return string_so_far, map
 
