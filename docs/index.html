@@ -160,13 +160,13 @@
                 <div><b>Resolution</b></div>
                 <div class="resolutions">
                     <input type="radio" name="resolution" value="2" id="lowResolution" onchange="updateResolution()">
-                    <label for="lowResolution">1</label>
+                    <label for="lowResolution">Low</label>
 
                     <input type="radio" name="resolution" value="3" id="mediumResolution" checked="checked" onchange="updateResolution()">
-                    <label for="mediumResolution">2</label>
+                    <label for="mediumResolution">Mid</label>
 
                     <input type="radio" name="resolution" value="4" id="highResolution" onchange="updateResolution()">
-                    <label for="highResolution">3</label>
+                    <label for="highResolution">High</label>
                 </div>
             </div>
         </div>
@@ -304,17 +304,33 @@
             selectedSpecies = commonName;
             const species = speciesData.find(s => s.common_name === commonName);
             const speciesScientificName = removeHyphens(species.scientific_name);
-            document.getElementById('speciesInput').value = `${commonName} (${speciesScientificName})`;
+            const speciesInput = document.getElementById('speciesInput');
+            speciesInput.value = `${commonName} (${speciesScientificName})`;
             document.getElementById('dropdownMenu').classList.remove('show');
+            speciesInput.blur(); // Remove focus from the input field
+            updateURL(); // Update the URL
             updateMap();
         }
-
         // Respond to user selecting a resolution
         function updateResolution() {
             const resolutionRadios = document.querySelectorAll('input[name="resolution"]');
             selectedResolution = Array.from(resolutionRadios).find(radio => radio.checked).value;
+            updateURL(); // Update the URL
             updateMap();
         }
+
+        function updateURL() {
+            const queryParams = new URLSearchParams();
+            if (selectedSpecies) {
+                const speciesForURL = selectedSpecies.replace(/ /g, '_'); // Replace spaces with underscores
+                queryParams.set('species', speciesForURL);
+            }
+            if (selectedResolution) {
+                queryParams.set('resolution', selectedResolution);
+            }
+            history.replaceState(null, '', `?${queryParams.toString()}`);
+        }
+
 
         // Update the map based on the selected species and resolution
         function updateMap() {
@@ -326,16 +342,49 @@
             iframe.src = mapData ? mapData.map_url : '';
         }
 
+
+
+
         // Initialize the page with default species and resolution
+        // async function initializePage() {
+        //     await loadSpeciesData();
+        //     selectedSpecies = "Red-tailed Hawk";
+        //     selectedResolution = "3";
+        //     const species = speciesData.find(s => s.common_name === selectedSpecies);
+        //     document.getElementById('speciesInput').value = `${selectedSpecies} (${removeHyphens(species.scientific_name)})`;
+        //     document.querySelector('input[name="resolution"][value="3"]').checked = true;
+        //     updateMap();
+        // };
+
         async function initializePage() {
             await loadSpeciesData();
-            selectedSpecies = "Red-tailed Hawk";
-            selectedResolution = "3";
-            const species = speciesData.find(s => s.common_name === selectedSpecies);
-            document.getElementById('speciesInput').value = `${selectedSpecies} (${removeHyphens(species.scientific_name)})`;
-            document.querySelector('input[name="resolution"][value="3"]').checked = true;
-            updateMap();
-        };
+            const urlParams = new URLSearchParams(window.location.search);
+            const speciesParam = urlParams.get('species');
+            const resolutionParam = urlParams.get('resolution');
+
+            if (speciesParam && resolutionParam) {
+                // Replace underscores with spaces for the species name
+                const decodedSpecies = decodeURIComponent(speciesParam).replace(/_/g, ' ');
+                selectedSpecies = decodedSpecies;
+                selectedResolution = resolutionParam;
+
+                const species = speciesData.find(s => s.common_name === selectedSpecies);
+                if (species) {
+                    document.getElementById('speciesInput').value = `${selectedSpecies} (${removeHyphens(species.scientific_name)})`;
+                    document.querySelector(`input[name="resolution"][value="${selectedResolution}"]`).checked = true;
+                    updateMap();
+                }
+            } else {
+                // Default initialization
+                selectedSpecies = "Red-tailed Hawk";
+                selectedResolution = "3";
+                const species = speciesData.find(s => s.common_name === selectedSpecies);
+                document.getElementById('speciesInput').value = `${selectedSpecies} (${removeHyphens(species.scientific_name)})`;
+                document.querySelector('input[name="resolution"][value="3"]').checked = true;
+                updateMap();
+            }
+        }
+
 
         // Close dropdown when clicking outside
         document.addEventListener('click', (event) => {
