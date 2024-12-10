@@ -373,56 +373,12 @@ def split_polygon_at_line(polygon, line):
     
     return split_geojsons
 
-# REMOVED IN FAVOR OF ADJUST_LONGITUDES
-# which doesn't result in issues for species like Polynesian Starling, Fiji Shrikebill
-# whose ranges straddle the dateline and the halves are shown at opposite sides of the map
-# def split_at_dateline(geojson):
-#     """
-#     Splits polygons that cross the International Date Line (180° longitude).
-    
-#     Parameters:
-#     - geojson: A GeoJSON-like dictionary of geometries.
-    
-#     Returns:
-#     - A new GeoJSON with adjusted geometries.
-#     """
-#     dateline = LineString([(180, 90), (180, -90)])
-#     adjusted_polygons = []
-    
-#     for feature in geojson['features']:
-#         geom = feature['geometry']
-#         polygon = Polygon(geom['coordinates'][0])
-
-#         # Check if the polygon crosses the dateline
-#         if not polygon.is_valid:
-#             polygon = polygon.buffer(0)  # Fix invalid geometries
-
-#         # Check if any of the polygon's coordinates are within 5 degrees of the dateline
-#         if any(abs(lon) > 170 for lon, _ in polygon.exterior.coords) and any(abs(lon1 - lon2) > 180 for lon1, lon2 in zip(polygon.exterior.xy[0][:-1], polygon.exterior.xy[0][1:])):
-#             # For all the longitudes that are less than -170, add 360 to them
-#             new_coords = [
-#                 [(x + 360 if x < -170 else x, y) for x, y in polygon.exterior.coords]
-#             ]
-#             adjusted_polygons.append({
-#                 "type": "Feature",
-#                 "geometry": {
-#                     "type": "Polygon",
-#                     "coordinates": new_coords
-#                 },
-#                 "properties": feature['properties']
-#             })
-#         else:
-#             adjusted_polygons.append(feature)
-    
-#     return {
-#         "type": "FeatureCollection",
-#         "features": adjusted_polygons
-#     }
 
 
-def adjust_longitudes(geojson):
+def split_at_dateline(geojson):
     """
-    Adjusts longitudes in a GeoJSON so that any longitude less than 0 has 360 added to it.
+    Adjusts polygons in a GeoJSON that cross the International Date Line (180° longitude)
+    by adding 360 to longitudes less than 0, but only for polygons within 10 degrees of the dateline.
     
     Parameters:
     - geojson: A GeoJSON-like dictionary of geometries.
@@ -434,34 +390,38 @@ def adjust_longitudes(geojson):
 
     for feature in geojson['features']:
         geom = feature['geometry']
-        geom_type = geom['type']
-        
-        if geom_type == "Polygon":
-            # Adjust longitudes in Polygon coordinates
-            new_coords = [
-                [(lon + 360 if lon < 0 else lon, lat) for lon, lat in ring]
-                for ring in geom['coordinates']
-            ]
-            adjusted_geometry = {"type": "Polygon", "coordinates": new_coords}
-        
-        elif geom_type == "MultiPolygon":
-            # Adjust longitudes in MultiPolygon coordinates
-            new_coords = [
-                [
-                    [(lon + 360 if lon < 0 else lon, lat) for lon, lat in ring]
-                    for ring in polygon
-                ]
-                for polygon in geom['coordinates']
-            ]
-            adjusted_geometry = {"type": "MultiPolygon", "coordinates": new_coords}
-        
-        else:
-            # For unsupported geometry types, leave as-is
-            adjusted_geometry = geom
+        coords = geom['coordinates']
 
+        if geom['type'] == 'Polygon':
+            # Check if the polygon is near the dateline
+            if any(abs(lon) > 165 for ring in coords for lon, _ in ring):
+                # Adjust longitudes for all rings in the polygon
+                new_coords = [
+                    [(lon + 360 if lon < 0 else lon, lat) for lon, lat in ring]
+                    for ring in coords
+                ]
+                geom['coordinates'] = new_coords
+
+        elif geom['type'] == 'MultiPolygon':
+            # Check each polygon in the MultiPolygon
+            new_coords = []
+            for polygon in coords:
+                if any(abs(lon) > 170 for ring in polygon for lon, _ in ring):
+                    # Adjust longitudes for all rings in the polygon
+                    adjusted_polygon = [
+                        [(lon + 360 if lon < 0 else lon, lat) for lon, lat in ring]
+                        for ring in polygon
+                    ]
+                    new_coords.append(adjusted_polygon)
+                else:
+                    # Keep polygon unchanged
+                    new_coords.append(polygon)
+            geom['coordinates'] = new_coords
+
+        # Add the updated feature to the new collection
         adjusted_features.append({
             "type": "Feature",
-            "geometry": adjusted_geometry,
+            "geometry": geom,
             "properties": feature['properties']
         })
 
@@ -595,8 +555,8 @@ def choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_
     geojson_result = json.dumps(feat_collection)
 
     # Deal with geometries that cross the International Date Line
-#     geojson_result = split_at_dateline(json.loads(geojson_result))
-    geojson_result = adjust_longitudes(json.loads(geojson_result))
+    geojson_result = split_at_dateline(json.loads(geojson_result))
+#     geojson_result = adjust_longitudes(json.loads(geojson_result))
 
     # Reduce precision to 3 digits (111 meters)
     geojson_result = reduce_precision(geojson_result, precision=3)
@@ -736,9 +696,15 @@ for idx, species in ProgIter(enumerate(spp_with_infras[start_idx:end_idx])):
             dataname = f"../sp_cell_dfs/{species.replace(' ', '-')}_status-unflagged_resolution{resolution}.csv"
             sp_cell_df = import_sp_cell_df(dataname)
 
+        # Set a single color mapping for all resolutions
         subspecies = sp_cell_df.columns[1:]
         if resolution == 2 or subspp_colors == None:
             subspp_colors, sorted_issfs, sorted_forms, sorted_intergrades = get_color_mapping(sp_cell_df)
+        
+        # Skip this species if there are 0 reports.
+        if sp_cell_df[subspecies].sum().sum() == 0:
+            print("No subspecies reported to eBird. Continuing")
+            continue
             
         map_string, m = choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_forms, sorted_intergrades)
         map_filename = f"../docs/maps/{species.replace(' ', '-')}_{resolution}.html"
