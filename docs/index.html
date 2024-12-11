@@ -150,7 +150,12 @@
         
         <div class="buttonContainer">  
             <div class="dropdownContainer">
-                <div><b>Species</b></div>
+                <div>
+                    <b>Species</b>
+                    <a href="#" id="surpriseMe" style="margin-left: 10px; font-size: 0.8rem; text-decoration: none; color: #007bff; cursor: pointer;">
+                        Surprise me!
+                    </a>
+                </div>
                 <div class="dropdown">
                     <input type="text" id="speciesInput" placeholder="Start typing..." oninput="filterDropdown()" onfocus="highlightText(this)"  autocomplete="off">
                     <div id="dropdownMenu" class="dropdown-menu"></div>
@@ -343,6 +348,26 @@
         }
 
 
+        // Function to randomize species
+        function surpriseMe() {
+            const speciesList = speciesData.map(({ common_name }) => common_name);
+            if (speciesList.length === 0) return;
+
+            // Pick a random species different from the current one
+            let randomSpecies;
+            do {
+                randomSpecies = speciesList[Math.floor(Math.random() * speciesList.length)];
+            } while (randomSpecies === selectedSpecies && speciesList.length > 1); // Avoid repeating if possible
+
+            selectSpecies(randomSpecies); // Reuse the existing function
+            updateURL(); // Update the URL with the new species
+        }
+
+        // Add event listener to the "Surprise Me" link
+        document.getElementById('surpriseMe').addEventListener('click', (e) => {
+            e.preventDefault(); // Prevent the default link behavior
+            surpriseMe();
+        });
 
 
         // Initialize the page with default species and resolution
