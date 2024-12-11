@@ -1,6 +1,5 @@
 ebd*.tar
 color_testing.ipynb
-sp_cell_dfs
 /data/
 /batches*/
 /scripts/progress_trackers/
