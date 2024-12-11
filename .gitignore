@@ -1,3 +1,4 @@
+maps/
 ebd*.tar
 color_testing.ipynb
 /data/
@@ -8,5 +9,4 @@ __pycache__/
 .ipynb_checkpoints
 *_outputs*
 *.slurm
-docs/maps/*.html
 *_testing.ipynb
