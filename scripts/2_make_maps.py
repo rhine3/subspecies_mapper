@@ -1,4 +1,3 @@
-#import fireducks.pandas as pd
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -25,26 +24,37 @@ from colormath.color_conversions import convert_color
 from colormath import color_diff_matrix
 #from colormath.color_diff import delta_e_cie2000 # deprecated and doesn't work anymore, reimplemented below
 
+remake_maps = True
+include_flagged_confirmed = True
+resolutions = [3,2,4]
+
+resources_dir = Path("../resources")
+sp_cell_df_dir = resources_dir.joinpath("sp_cell_dfs")
 
 # Load eBird taxonomy
-taxonomy = pd.read_csv("../resources/eBird_taxonomy_v2024.csv")
+taxonomy = pd.read_csv(resources_dir.joinpath("eBird_taxonomy_v2024.csv"))
 
 # Load dict of infraspecies
-with open("../resources/infraspecies_ebird.json") as f:
+with open(resources_dir.joinpath("infraspecies_ebird.json")) as f:
     spp_dict = json.load(f)
-    
     
 # Make 70 jobs, each of which does maps for 20 spp.
 job_num = int(os.environ.get('SLURM_ARRAY_TASK_ID'))
 species_per_job = 20
 start_idx = job_num*species_per_job
 end_idx = (job_num+1)*species_per_job
+    
+# Extract which species scientific names have infraspecies associated with them
+spp_with_infras = [sp for sp, info in spp_dict.items() if len(info["infraspecies"].keys()) > 0]
+          
+intergrade_parents = pd.read_csv(resources_dir.joinpath("ebird_2024_intergrade_parents.csv"))
 
-# Parameters
-remake_maps = True # Remake a map if it already exists
-include_flagged_confirmed = True # Include flagged records (only confirmed are available)
-resolutions = [2,3,4] #H3 resolutions to use (assuming sp_cell_dfs already computed)
-
+def import_sp_cell_df(dataname):
+    if not Path(dataname).exists():
+         return None
+    sp_cell_df = pd.read_csv(dataname, index_col=0)
+    sp_cell_df.columns = sp_cell_df.columns.str.replace(species + ' ', "")
+    return sp_cell_df
 
 def aggregate_by_cell(dataframes):
     """Aggregate column values in dataframes by H3 cells
@@ -55,7 +65,14 @@ def aggregate_by_cell(dataframes):
     return reduce(lambda a, b: a.add(b, fill_value=0), dataframes)
 
 
-def get_infraspecies_relationships(sp, spp_dict=spp_dict):
+def get_infraspecies_relationships(sp, spp_dict=spp_dict, intergrade_parents=intergrade_parents):
+    """Get a dictionary mapping infraspecies/forms to their "parents"
+    
+    Args:
+        sp: scientific name of species
+        spp_dict: dictionary of children of every species
+        intergrade_parents: eBird-maintained CSV of intergrade parents
+    """
     data = spp_dict[sp]['infraspecies']
     
     # Get a list of each type of infraspecies
@@ -80,6 +97,14 @@ def get_infraspecies_relationships(sp, spp_dict=spp_dict):
     # Find parents of the intergrades, if any are in the eBird taxonomy
     # Also determine which intergrades, if any, have no parents
     for intergrade in intergrades:
+        # Come back to using the eBird CSV later
+        # For Redpoll, problem is that one of the listed parents, "flammea Group", isn't in the main eBird Taxonomy, though "flammea" is
+        # This could be a problem with other spp as well, so let's skip it for now
+#         intergrade_searching = f"{sp} .{intergrade}"
+#         parents = intergrade_parents[intergrade_parents.sci_name == intergrade_searching].parent_sci_name.values.tolist()
+#         if len(parents) > 0:
+#              intergrade_to_parents[intergrade] = parents
+        
         parents = [i.strip() for i in intergrade.split('x')]
         # Check if all are true
         if all([p in issfs+forms for p in parents]):
@@ -103,14 +128,12 @@ def get_infraspecies_relationships(sp, spp_dict=spp_dict):
             forms_to_parents[form] = parent_issfs
         else:
             top_level_forms.append(form)
-        
+    
     return issfs, forms, intergrades, intergrade_to_parents, forms_to_parents, top_level_intergrades, top_level_forms
-
 
 def rgb_to_hex(rgb):
     """Convert an (R, G, B) tuple to a hex color (#RRGGBB)."""
     return "#{:02x}{:02x}{:02x}".format(*rgb)
-
 
 def hex_to_rgb(hex_color):
     """Convert hex color (#RRGGBB) to an (R, G, B) tuple."""
@@ -294,11 +317,19 @@ def generate_priority_hues(subspecies, overlap_matrix):
 
     # Sort subspecies by overlap intensity
     subspecies_sorted = sorted(zip(subspecies, overlap_intensity), key=lambda x: x[1], reverse=True)
-
+    zero = subspecies_sorted[0]
+    one = subspecies_sorted[1]
+    
+    # For dark-eyed junco, overrule the ordering for fun
+    if 'aikeni' == zero[0] and 'dorsalis' == one[0]:
+        subspecies_sorted[0] = one
+        subspecies_sorted[1] = zero
+    
     # Assign hues sequentially to prioritize highly overlapping subspecies
     assigned_hues = {}
     used_hues = set()
     for subsp, _ in subspecies_sorted:
+        #if subsp = 
         # Find the most distinct unused hue
         best_hue = None
         max_dist = -1
@@ -391,31 +422,42 @@ def split_at_dateline(geojson):
         geom = feature['geometry']
         coords = geom['coordinates']
 
-        if geom['type'] == 'Polygon':
+#         if geom['type'] == 'Polygon':
+        assert geom['type'] == 'Polygon'
             # Check if the polygon is near the dateline
-            if any(abs(lon) > 165 for ring in coords for lon, _ in ring):
-                # Adjust longitudes for all rings in the polygon
-                new_coords = [
-                    [(lon + 360 if (lon < 0 and lat < 0) else lon, lat) for lon, lat in ring]
-                    for ring in coords
-                ]
-                geom['coordinates'] = new_coords
+        if any(abs(lon) > 165 for ring in coords for lon, _ in ring):
+#       # Adjust longitudes for all rings in the polygon
+#             new_coords = [
+#                 [(lon + 360 if (lon < 0 and lat < 0) else lon, lat) for lon, lat in ring]
+#                 for ring in coords
+#             ]
 
-        elif geom['type'] == 'MultiPolygon':
-            # Check each polygon in the MultiPolygon
             new_coords = []
-            for polygon in coords:
-                if any(abs(lon) > 170 for ring in polygon for lon, _ in ring):
-                    # Adjust longitudes for all rings in the polygon
-                    adjusted_polygon = [
-                        [(lon + 360 if (lon < 0 and lat < 0) else lon, lat) for lon, lat in ring]
-                        for ring in polygon
-                    ]
-                    new_coords.append(adjusted_polygon)
-                else:
-                    # Keep polygon unchanged
-                    new_coords.append(polygon)
-            geom['coordinates'] = new_coords
+            for ring in coords:
+                for lon, lat in ring:
+                    if (lon < 0 and (lat < 0)): # For the area of Fiji
+                        new_coords.append((lon+360, lat))
+                    elif (lon > 0 and (lat > 50)): # For Aleutians & far eastern Russia
+                        new_coords.append((lon-360, lat))
+                    else:
+                        new_coords.append((lon, lat))
+            geom['coordinates'] = [new_coords]
+
+#         elif geom['type'] == 'MultiPolygon':
+#             # Check each polygon in the MultiPolygon
+#             new_coords = []
+#             for polygon in coords:
+#                 if any(abs(lon) > 170 for ring in polygon for lon, _ in ring):
+#                     # Adjust longitudes for all rings in the polygon
+#                     adjusted_polygon = [
+#                         [(lon + 360 if (lon < 0 and lat < 0) else lon, lat) for lon, lat in ring]
+#                         for ring in polygon
+#                     ]
+#                     new_coords.append(adjusted_polygon)
+#                 else:
+#                     # Keep polygon unchanged
+#                     new_coords.append(polygon)
+#             geom['coordinates'] = new_coords
 
         # Add the updated feature to the new collection
         adjusted_features.append({
@@ -429,12 +471,24 @@ def split_at_dateline(geojson):
         "features": adjusted_features
     }
 
-
 def get_range_size(sp_cell_df, ssp):
     """Calculate the range size of a subspecies."""
     return (sp_cell_df[ssp] > 0).astype(int).sum()
 
 def get_color_mapping(sp_cell_df):
+    def _average_and_adjust(parents, infraspecies):
+        avg = average_hues([ssp_hues[parent] for parent in parents])
+        start = avg
+        amt_change = 0
+        # Change any that look too similar to others
+        while any(is_color_too_similar(avg, h2) for h2 in ssp_hues.values()):
+            adj = 5
+            avg -= adj % 360
+            amt_change += adj
+            if amt_change > 360: # Couldn't find a different enough color. looped around.
+                print("Couldn't find more different color for", infraspecies)
+                break
+        return avg
     # Get the relationships between the infraspecies (ISSFs, forms, intergrades)
     issfs, forms, intergrades, inter_to_p, form_to_p, top_inter, top_form = get_infraspecies_relationships(species, spp_dict)
 
@@ -446,9 +500,13 @@ def get_color_mapping(sp_cell_df):
 
     # Get colors for the lower-level infraspecies by averaging their "parent" infraspecies
     for intergrade, parents in inter_to_p.items():
-        ssp_hues[intergrade] = average_hues([ssp_hues[parent] for parent in parents])
+        ssp_hues[intergrade] = _average_and_adjust(parents, intergrade)
+        
     for form, parents in form_to_p.items():
-        ssp_hues[form] = average_hues([ssp_hues[parent] for parent in parents])
+        ssp_hues[form] = _average_and_adjust(parents, form)
+#         ssp_hues[form] = average_hues([ssp_hues[parent] for parent in parents])
+    
+    
 
     # Convert hues to vibrant colors
     ssp_colors = {ssp: hue_to_hex_vibrant(hue) for ssp, hue in ssp_hues.items()}
@@ -492,13 +550,13 @@ def choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_
     map = folium.Map(location=[47, -122], zoom_start=5, 
                      tiles="cartodbpositron", 
                      #tiles=folium.TileLayer("cartodbpositron", no_wrap=True),
-                     control_scale=True, world_copy_jump=False)
+                     control_scale=True, world_copy_jump=True)
     f.add_child(map)
 
     sp = sp_cell_df.columns[0]
     subspp = sp_cell_df.columns[1:]
     
-    # Create polygon features with 
+    # Create polygon features with tooltips
     list_features = []
     for _, row in sp_cell_df.iterrows():
         # Calculate the relative percentage of sightings of each subspecies for each cell
@@ -555,9 +613,9 @@ def choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_
 
     # Deal with geometries that cross the International Date Line
     geojson_result = split_at_dateline(json.loads(geojson_result))
-#     geojson_result = adjust_longitudes(json.loads(geojson_result))
+    #geojson_result = adjust_longitudes(json.loads(geojson_result))
 
-    # Reduce precision to 3 digits (111 meters)
+    # Reduce precision to 3 digits (111 meters) 
     geojson_result = reduce_precision(geojson_result, precision=3)
     
     # Add GeoJSON layer to the map
@@ -605,10 +663,13 @@ def choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_
         legend_html += f'<div style="margin-top:10px;"><b>{category}</b></div>'
         for subsp in sorted_subspecies:
             subsp_common_name = get_ssp_common_name(sp, subsp)
-            if subsp_common_name == subsp.strip('[]'): # Only display one name if no unique common name
-                display_name = subsp
+            if subsp_common_name == subsp.strip('[]').strip('()'): # Only display one name if no unique common name
+                display_name = subsp.strip('[]').strip('()')
             else:
-                display_name = f"{subsp_common_name} ({subsp})"
+                if subsp[0] == '(' or subsp[0] == '[':
+                    display_name = f"{subsp_common_name} {subsp}"
+                else:
+                    display_name = f"{subsp_common_name} ({subsp})"
 
             display_name = '/<wbr>'.join(display_name.split('/')) # Add available wordbreaks for long slash names
             color = subspp_colors.get(subsp, "#ccc")  # Default color if no color is found
@@ -617,19 +678,27 @@ def choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_
             subsp_code = taxonomy[taxonomy['SCI_NAME'] == f"{sp} {subsp}"].SPECIES_CODE.values[0]
             subsp_link = f"https://ebird.org/species/{subsp_code}"
             
-
+            # Create a string for displaying subspp name
             subsp_display = f"""
             <div style="display: inline-block; max-width: 150px; white-space: normal; overflow-wrap: break-word;">
                 <a href="{subsp_link}" target="_blank">{display_name}</a>
             </div>
             """
-            # Format subspecies name next to colors
+            # Combine formatted subspp name and block of color
             legend_html += f"""
             <div style="margin-top: 5px;">
                 <span style="display: inline-block; width: 20px; height: 10px; margin-right: 5px; background-color: {color};"></span>
                 {subsp_display}
             </div>
             """
+    # Add a block of gray indicating no subspp reported
+    legend_html += f"""
+    <div style="margin-top: 10px;">
+        <span style="display: inline-block; width: 20px; height: 10px; margin-right: 5px; background-color: #bbb;"></span>
+         <i>No subspecies reported</i>
+    </div>
+    """
+    
     legend_html += "</div>"
     
     legend_element = folium.Element(legend_html)
@@ -648,26 +717,29 @@ def choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_
 
     string_so_far = map.get_root().render()
     return string_so_far, map
-
-def import_sp_cell_df(dataname):
-    if not Path(dataname).exists():
-         return None
-    sp_cell_df = pd.read_csv(dataname, index_col=0)
-    sp_cell_df.columns = sp_cell_df.columns.str.replace(species + ' ', "")
-    return sp_cell_df
-
-
-# Extract which species scientific names have infraspecies associated with them
-spp_with_infras = [sp for sp, info in spp_dict.items() if len(info["infraspecies"].keys()) > 0]
-
     
 remake_maps=True
 for idx, species in ProgIter(enumerate(spp_with_infras[start_idx:end_idx])):
+# species below are all good examples
+#for idx, species in ProgIter(enumerate(spp_with_infras)):
+#for idx, species in ProgIter(enumerate(['Branta bernicla'])): #Brant
+#for idx, species in ProgIter(enumerate(['Aplonis tabuensis'])):
+#for idx, species in ProgIter(enumerate(['Larus glaucoides'])): #GLGU
+#for idx, species in ProgIter(enumerate(['Chroicocephalus novaehollandiae'])): #Silver Gull
+#for idx, species in ProgIter(enumerate(['Columba livia'])): #ROPI
+#for idx, species in ProgIter(enumerate(['Zonotrichia leucophrys'])): #WCSP good example of intergrade color being almost identical to another color
+#for idx, species in ProgIter(enumerate(['Junco hyemalis'])): #DEJU
+#for idx, species in ProgIter(enumerate(['Saxicola maurus'])): # Siberian stonechat
+#for idx, species in ProgIter(enumerate(['Buteo jamaicensis'])):
+#for idx, species in ProgIter(enumerate(['Columba vitiensis'])):
+#for idx, species in ProgIter(enumerate(['Leucosticte tephrocotis'])): #GCRF, good example for Aleutians
+#for idx, species in ProgIter(enumerate(['Coccothraustes vespertinus'])): #EVGR, good example for labels
+#for idx, species in ProgIter(enumerate(['Acanthis flammea'])): #Redpoll, good example of weird intergrade situation
     subspp_colors = None
     print("\nMapping", species)
     common_name = taxonomy[taxonomy['SCI_NAME'] == species].PRIMARY_COM_NAME.values[0]
     print(common_name)
-    for resolution in resolutions: #[2,3,4]
+    for resolution in resolutions:
         # Skip this species & resolution if needed
         map_filename = f"../docs/maps/{species.replace(' ', '-')}_{resolution}.html"
         if Path(map_filename).exists() and not remake_maps:
@@ -677,8 +749,8 @@ for idx, species in ProgIter(enumerate(spp_with_infras[start_idx:end_idx])):
         # Load datasets as needed
         if include_flagged_confirmed:
             # Aggregate both flagged and unflagged data
-            df1 = import_sp_cell_df(f"../sp_cell_dfs/{species.replace(' ', '-')}_status-unflagged_resolution{resolution}.csv")
-            df2 = import_sp_cell_df(f"../sp_cell_dfs/{species.replace(' ', '-')}_status-flagged-approved_resolution{resolution}.csv")
+            df1 = import_sp_cell_df(sp_cell_df_dir.joinpath(f"{species.replace(' ', '-')}_status-unflagged_resolution{resolution}.csv"))
+            df2 = import_sp_cell_df(sp_cell_df_dir.joinpath(f"{species.replace(' ', '-')}_status-flagged-approved_resolution{resolution}.csv"))
             if df1 is None:
                 if df2 is None:
                     print("No data for", species, "at resolution", resolution)
@@ -692,18 +764,16 @@ for idx, species in ProgIter(enumerate(spp_with_infras[start_idx:end_idx])):
                     sp_cell_df = aggregate_by_cell([df1, df2])    
         else:
             # Use only unflagged data
-            dataname = f"../sp_cell_dfs/{species.replace(' ', '-')}_status-unflagged_resolution{resolution}.csv"
+            dataname = sp_cell_dfs_dir.joinpath(f"{species.replace(' ', '-')}_status-unflagged_resolution{resolution}.csv")
             sp_cell_df = import_sp_cell_df(dataname)
-
-        # Set a single color mapping for all resolutions
-        subspecies = sp_cell_df.columns[1:]
-        if resolution == 2 or subspp_colors == None:
-            subspp_colors, sorted_issfs, sorted_forms, sorted_intergrades = get_color_mapping(sp_cell_df)
         
-        # Skip this species if there are 0 reports.
-        if sp_cell_df[subspecies].sum().sum() == 0:
+        if sp_cell_df[sp_cell_df.columns[1:]].sum().sum() == 0:
             print("No subspecies reported to eBird. Continuing")
             continue
+
+        subspecies = sp_cell_df.columns[1:]
+        if resolution == 3 or subspp_colors == None:
+            subspp_colors, sorted_issfs, sorted_forms, sorted_intergrades = get_color_mapping(sp_cell_df)
             
         map_string, m = choropleth_map(sp_cell_df, common_name, subspp_colors, sorted_issfs, sorted_forms, sorted_intergrades)
         map_filename = f"../docs/maps/{species.replace(' ', '-')}_{resolution}.html"
