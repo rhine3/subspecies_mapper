@@ -21,8 +21,14 @@ h1 {
     color: #333;
 }
 
+h3 {
+    margin-top:30px;
+    margin-bottom: 15px;
+    color: #333;
+}
+
 a {
-    color: #007bff;
+    color: #2779d1;
     text-decoration: none;
 }
 
