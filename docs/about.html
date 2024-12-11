@@ -17,7 +17,7 @@
 <body>
     <div class="container">
         <h1>About Subspecies Mapper</h1>
-        <p>This website displays maps of subspecies eBird reports for 1311 species with reportable subspecies on eBird. (Sensitive species and species without subspecies reports are not included.)</p>
+        <p>This website displays maps of subspecies eBird reports for 1311 species with reportable subspecies on eBird. Sensitive species and species without any subspecies reported to eBird are not included.</p>
         <h3>Terminology</h3>
         <p>For a given species, maps display all reported "infraspecies" of the three following categories, following the <a href="https://science.ebird.org/en/use-ebird-data/the-ebird-taxonomy">eBird taxonomy</a>:</p>
         <ul>
@@ -25,6 +25,24 @@
             <li><strong>Forms</strong>: Catch-all for forms without a scientific name, including identifiable groups, unrecognized groups that may represent distinct taxa, etc.</li>
             <li><strong>Intergrades</strong>: Birds descended from multiple subspecies, forms, or both</li>
         </ul>
+        
+        <h3>Data downloads</h3>
+        <p><b>Want to create your own maps?</b> Tables of subspecies data used to create these maps are available <a href="https://github.com/rhine3/subspecies_mapper/tree/main/resources/sp_cell_dfs">here</a> (see usage requirements below).
+        <p> Maps for each species are separated by:</p>
+        <ul>
+            <li><b>H3 resolution:</b> either resolution 2, 3, or 4. See <a href="https://h3geo.org/docs/core-library/restable/">H3 documentation</a> for more information.</li>
+            <li><b>Report status:</b> either "unflagged", reports that were not originally flagged by eBird filters, or "flagged and accepted" reports that were confirmed by eBird reviewers.</li>
+        </ul>
+        <p>To use these data, you must agree to the <a href="https://github.com/rhine3/subspecies_plotter/blob/main/terms_of_use.txt">eBird Data Terms of Use</a>. 
+        Please cite this website as well as the eBird dataset if you use these data.</p>
+        <h3>Contact</h3>
+        <p>For questions or comments, please contact <a href="https://tessarhinehart.com">Tessa Rhinehart</a>.</p>
+
+        <h3>Cite this website</h3>
+        <blockquote>
+            Rhinehart, Tessa A; Ragan, Liam; Beam, Johanna. Subspecies Mapper. Oct 2024. https://rhine3.github.io/subspecies_plotter/.
+        </blockquote>
+
         <h3>Acknowledgements</h3>
         <p>Maps in this website are generated from the eBird dataset:</p>
         <blockquote>
@@ -32,13 +50,6 @@
         </blockquote>
         <p>This research was supported in part by the University of Pittsburgh Center for Research Computing through the resources provided. Specifically, this work used the HTC cluster, which is supported by NIH award number S10OD028483.</p>
 
-        <h3>Data downloads</h3>
-        <p><b>Want to create your own maps?</b> Tables of subspecies data used to create these maps are available on request and agreement to follow the <a href="https://github.com/rhine3/subspecies_plotter/blob/main/terms_of_use.txt">eBird Data Terms of Use</a>. Please contact tessa dot rhinehart @ pitt.edu for more information.</p>
-
-        <h3>Cite this website</h3>
-        <blockquote>
-            Rhinehart, Tessa A; Ragan, Liam; Beam, Johanna. Subspecies Mapper. Oct 2024. https://rhine3.github.io/subspecies_plotter/.
-        </blockquote>
     </div>
 </body>
 </html>
