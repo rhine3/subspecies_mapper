@@ -151,12 +151,26 @@
         <div class="buttonContainer">  
             <div class="dropdownContainer">
                 <div>
-                    <b>Species</b>
+                    <b>Search for a species...</b>
                 </div>
-                <div class="dropdown">
-                    <input type="text" id="speciesInput" placeholder="Start typing..." oninput="filterDropdown()" onfocus="highlightText(this)"  autocomplete="off">
+                <div class="dropdown" style="position: relative; display: inline-block;">
+                    <!-- Input field with magnifying glass icon -->
+                    <input 
+                        type="text" 
+                        id="speciesInput" 
+                        placeholder="Start typing..." 
+                        oninput="filterDropdown()" 
+                        onfocus="highlightText(this)"  
+                        autocomplete="off"
+                        style="padding-left: 30px;"
+                    >
+                    <span 
+                        class="search-icon" 
+                        style="position: absolute; left: 10px; top: 50%; transform: translateY(-100%); pointer-events: none; font-size: 0.9rem; color: #666;">
+                        🔍
+                    </span>
                     <div id="dropdownMenu" class="dropdown-menu"></div>
-
+                
                     <a href="#" id="surpriseMe" style="margin-left: 5px; font-size: 0.8rem; text-decoration: none; color: #007bff; cursor: pointer;">
                         Surprise me!
                     </a>
